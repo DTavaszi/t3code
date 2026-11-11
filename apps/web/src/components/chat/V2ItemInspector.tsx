@@ -177,11 +177,14 @@ export function FetchedToolOutput(props: {
   readonly environmentId: EnvironmentId;
   readonly onImageExpand?: ((preview: ExpandedImagePreview) => void) | undefined;
   readonly source?: TurnItemSource | undefined;
+  readonly showImages?: boolean;
 }) {
   const { output } = useFetchedTurnItem(props.projectedItem, props.environmentId, props.source);
   return (
     <div className={cn("mt-1.5 space-y-1.5", monoClassName)}>
-      <ToolOutputImages {...output} onImageExpand={props.onImageExpand} />
+      {props.showImages !== false ? (
+        <ToolOutputImages {...output} onImageExpand={props.onImageExpand} />
+      ) : null}
       <ToolOutput {...output} onImageExpand={props.onImageExpand} />
     </div>
   );
