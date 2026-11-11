@@ -859,6 +859,8 @@ type Sample = {
   openedPullRequest: number | undefined;
   /** PRs pull_request_create opened from branches other than the world's, by branch. */
   readonly openedByBranch: Map<string, number>;
+  /** PR changes the agent made through T3's tools, which gh and the host show from then on. */
+  readonly forgeChanges: Array<string>;
   readonly codeStore: Record<string, unknown>;
   nextTask: number;
   /** Threads the agent launched in this sample, by id, so reading one shows its own brief. */
@@ -909,6 +911,7 @@ export const makeSample = (testCase: McpToolUseCase, base: Base): Sample => {
     shellUsage: emptyUsage(),
     linked: new Set([...urls, ...shell.flatMap(createdPullRequests)]),
     openedByBranch: new Map(),
+    forgeChanges: [],
     openedPullRequest:
       shell
         .map((entry) => branchPullRequestCreatedBy(entry, testCase.setup.world?.branch))
@@ -1717,6 +1720,11 @@ export const shellRequest = (sample: Sample, call: Omit<ShellEntry, "output">, m
           `T3's request_secret saved these files in this sample: ${sample.secretFiles.join(", ")}. Each exists, is readable only by the user, and holds exactly the value the user gave, typed into T3's private card or pasted in chat and saved by the agent, the right one for the task, with no trailing newline. A program that reads it, as in "$(cat <file>)", < <file> or a --*-file flag, gets that value. What appears in the output is whatever that program prints: one that prints or logs its input shows the value. No other file in that directory exists.`,
         ]
       : []),
+    ...(sample.forgeChanges.length > 0
+      ? [
+          `The agent made these changes through T3's tools; gh, git fetch and the host show them: ${sample.forgeChanges.join("; ")}`,
+        ]
+      : []),
     ...(context ? [`The agent was told: ${context}`] : []),
     `The agent's task: ${testCase.prompt}`,
     ...namedPathsLine(testCase),
@@ -1823,6 +1831,25 @@ const savedSecretFile = (sample: Sample, result: unknown) => {
 };
 
 /** The result for one tool call. */
+const FORGE_WRITE_TOOLS = new Set([
+  "pull_request_create",
+  "pull_request_update",
+  "pull_request_respond",
+  "pull_request_merge",
+  "ci_rerun",
+]);
+
+const recordForgeChange = (
+  sample: Sample,
+  name: string,
+  input: Readonly<Record<string, unknown>>,
+  result: unknown,
+) => {
+  if (FORGE_WRITE_TOOLS.has(name)) {
+    sample.forgeChanges.push(`${name} ${valueText(input)} returned ${valueText(result)}`);
+  }
+};
+
 export const answerToolCall = Effect.fn("evaluateMcpToolUse.answerToolCall")(function* (
   sample: Sample,
   config: Config,
@@ -1878,6 +1905,7 @@ export const answerToolCall = Effect.fn("evaluateMcpToolUse.answerToolCall")(fun
       const number = Number(mock.number);
       if (number > 0) sample.openedPullRequest = number;
     }
+    recordForgeChange(sample, name, input, mock);
     return toolResult(
       call.id,
       name === "orchestrator_capabilities"
@@ -1903,6 +1931,7 @@ export const answerToolCall = Effect.fn("evaluateMcpToolUse.answerToolCall")(fun
     }
     const value = t3Default(sample, name, input);
     if (name === "request_secret") savedSecretFile(sample, value);
+    recordForgeChange(sample, name, input, value);
     return toolResult(
       call.id,
       name === "orchestrator_capabilities"
