@@ -24,7 +24,7 @@ let revision;
 let texts;
 let heardAudio;
 let maxChunkSeconds;
-const transcript = () => maxChunkSeconds && !nativeStreaming ? joinSpeechChunks(texts, options.language ?? "auto") : texts.join(" ").trim();
+const transcript = () => maxChunkSeconds && !nativeStreaming ? joinSpeechChunks(texts, options.task === "translate" ? "en" : options.language ?? "auto") : texts.join(" ").trim();
 const warnVad = () => console.warn("Silero silence filtering unavailable; preserving raw recording and using bounded ASR chunks.");
 const resetAsr = () => {
   if (stream) stream.reset();

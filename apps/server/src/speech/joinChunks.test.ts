@@ -15,5 +15,6 @@ it("recognizes Unicode letters, combining marks and language word boundaries", (
   expect(joinSpeechChunks(["नमस्ते दुनिया", "दुनिया फिर"], "hi")).toBe("नमस्ते दुनिया फिर");
   expect(joinSpeechChunks(["코드를 검토", "검토 해주세요"], "ko")).toBe("코드를 검토 해주세요");
   expect(joinSpeechChunks(["こんにちは世界", "世界です"], "ja")).toBe("こんにちは世界です");
+  expect(joinSpeechChunks(["你好", "你好世界"], "yue")).toBe("你好世界");
   expect(joinSpeechChunks(["café", "cafe\u0301 encore"], "fr")).toBe("café encore");
 });

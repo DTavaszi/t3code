@@ -4,7 +4,7 @@ export function joinSpeechChunks(chunks: readonly string[], language: string) {
   const segmenter = new Intl.Segmenter(locale, { granularity: "word" });
   const words = (text: string) => [...segmenter.segment(text)].filter((part) => part.isWordLike);
   const key = (text: string) => text.normalize("NFC").toLowerCase();
-  const spaceless = /^(ja|zh|th|lo|km|my)(-|$)/.test(language);
+  const spaceless = /^(ja|zh|yue|th|lo|km|my)(-|$)/.test(language);
   let joined = "";
   for (const chunk of chunks) {
     const next = chunk.trim();
