@@ -34,7 +34,7 @@ export function joinSpeechChunks(
   };
   const spaceless = /^(ja|zh|yue|th|lo|km|my)(-|$)/.test(language);
   const spacelessScript =
-    /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}]/u;
+    /[\p{Script=Han}\p{Script_Extensions=Hiragana}\p{Script_Extensions=Katakana}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}]/u;
   let joined = "";
   let previous: (typeof chunks)[number] | undefined;
   for (const chunk of chunks) {
@@ -74,8 +74,7 @@ export function joinSpeechChunks(
     const needsSpace =
       !spaceless &&
       (language !== "auto" ||
-        (!spacelessScript.test(Array.from(leftEdge).at(-1) ?? "") &&
-          !spacelessScript.test(Array.from(rightEdge)[0] ?? "")));
+        (!spacelessScript.test(leftEdge) && !spacelessScript.test(rightEdge)));
     joined += (joined && needsSpace && /^[\p{L}\p{M}\p{N}]/u.test(rest) ? " " : "") + rest;
   }
   return joined;

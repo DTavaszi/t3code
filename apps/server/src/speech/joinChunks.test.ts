@@ -96,6 +96,9 @@ it.each([
   ["世界", "hello", "世界hello"],
   ["hello", "𠀀", "hello𠀀"],
   ["hello", "world", "hello world"],
+  ["こんにちはー", "world", "こんにちはーworld"],
+  ["hello", "안녕하세요", "hello 안녕하세요"],
+  ["مرحبا", "hello", "مرحبا hello"],
 ])("spaces auto-detected boundaries: %s + %s", (left, right, expected) => {
   expect(joinSpeechChunks([plain(left), plain(right)], "auto")).toBe(expected);
 });
