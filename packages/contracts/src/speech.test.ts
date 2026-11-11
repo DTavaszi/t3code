@@ -1,7 +1,12 @@
 import * as Schema from "effect/Schema";
 import { expect, it } from "vite-plus/test";
 
-import { EnvironmentSpeechModel, EnvironmentSpeechStatus } from "./speech.ts";
+import {
+  DEFAULT_SPEECH_TRANSCRIPTION_OPTIONS,
+  SpeechTranscriptionOptions,
+  EnvironmentSpeechModel,
+  EnvironmentSpeechStatus,
+} from "./speech.ts";
 
 const decodeStatus = Schema.decodeUnknownSync(EnvironmentSpeechStatus);
 const encodeStatus = Schema.encodeSync(EnvironmentSpeechStatus);
@@ -92,6 +97,22 @@ it.each([
         ...model,
         benchmark: { ...model.benchmark, secondsPer30s },
       }),
+    ).toThrow();
+  }
+});
+
+it("keeps legacy recordings unchanged and validates optional chunk limits", () => {
+  const decode = Schema.decodeUnknownSync(SpeechTranscriptionOptions);
+  expect(decode(DEFAULT_SPEECH_TRANSCRIPTION_OPTIONS).speechMaxChunkSeconds).toBeUndefined();
+  for (const seconds of [0, 20, 25, 30]) {
+    expect(
+      decode({ ...DEFAULT_SPEECH_TRANSCRIPTION_OPTIONS, speechMaxChunkSeconds: seconds })
+        .speechMaxChunkSeconds,
+    ).toBe(seconds);
+  }
+  for (const seconds of [-1, 1, 300, "25"]) {
+    expect(() =>
+      decode({ ...DEFAULT_SPEECH_TRANSCRIPTION_OPTIONS, speechMaxChunkSeconds: seconds }),
     ).toThrow();
   }
 });

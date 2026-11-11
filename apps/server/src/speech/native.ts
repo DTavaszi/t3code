@@ -2,11 +2,13 @@
 import * as NodeChildProcess from "node:child_process";
 import * as NodeSea from "node:sea";
 import type { SpeechStreamText } from "@t3tools/contracts";
+import { joinSpeechChunks } from "./joinChunks.ts";
 import { createSpeechAudio } from "./audio.ts";
 
 // Inline the small child entry so the packaged CLI does not need a separate worker artifact.
 const entry = `
 const createSpeechAudio = ${createSpeechAudio.toString()};
+const joinSpeechChunks = ${joinSpeechChunks.toString()};
 let speech;
 let model;
 let vadModel;
@@ -21,6 +23,8 @@ let scored;
 let revision;
 let texts;
 let heardAudio;
+let maxChunkSeconds;
+const transcript = () => maxChunkSeconds && !nativeStreaming ? joinSpeechChunks(texts, options.language ?? "auto") : texts.join(" ").trim();
 const warnVad = () => console.warn("Silero silence filtering unavailable; preserving raw recording and using bounded ASR chunks.");
 const resetAsr = () => {
   if (stream) stream.reset();
@@ -29,7 +33,7 @@ const resetAsr = () => {
 };
 const newAudio = (filterSilence) => createSpeechAudio({
   frameSamples: 512, filterSilence, nativeStreaming: model.capabilities.supportsStreaming,
-  longForm: model.supports("long_form"), maxAudioMs: model.capabilities.maxAudioMs,
+  maxChunkSeconds, longForm: model.supports("long_form"), maxAudioMs: model.capabilities.maxAudioMs,
 });
 const openAsr = async () => {
   if (nativeStreaming) {
@@ -40,12 +44,13 @@ const openAsr = async () => {
 const begin = async (message, live) => {
   resetAsr();
   options = message.options;
+  maxChunkSeconds = message.maxChunkSeconds ?? 0;
   nativeStreaming = live && model.capabilities.supportsStreaming;
   texts = [];
   scored = revision = 0;
   heardAudio = false;
   useVad = Boolean(message.vadPath) && (message.filterSilence ||
-    (!model.capabilities.supportsStreaming && !model.supports("long_form")));
+    (!model.capabilities.supportsStreaming && (maxChunkSeconds || !model.supports("long_form"))));
   if (useVad) {
     try {
       if (!vadModel) {
@@ -91,7 +96,7 @@ const decode = async (final) => {
       }
     } else {
       await transcribe(pcm);
-      preview = { committed: texts.join(" ").trim(), tentative: "" };
+      preview = { committed: transcript(), tentative: "" };
     }
   }
   return preview;
@@ -161,7 +166,7 @@ process.on("message", async (message) => {
     } else if (message.kind === "finish") {
       await feed(undefined, true);
       if (nativeStreaming && heardAudio) await stream.finalize();
-      const text = nativeStreaming ? (heardAudio ? stream.text.full : "") : texts.join(" ").trim();
+      const text = nativeStreaming ? (heardAudio ? stream.text.full : "") : transcript();
       resetAsr();
       audio = undefined;
       process.send({ type: "t3-speech-reply", ok: true, text });
@@ -173,7 +178,7 @@ process.on("message", async (message) => {
     } else if (message.kind === "transcribe") {
       await begin(message, false);
       await feed(message.pcm, true);
-      const text = texts.join(" ").trim();
+      const text = transcript();
       audio = undefined;
       process.send({ type: "t3-speech-reply", ok: true, text });
     }
@@ -400,8 +405,13 @@ async function loadNativeSpeechModelOnce(
     supportsLongForm: loaded.supportsLongForm === true,
     supportsTranslation: loaded.supportsTranslation === true,
     supportsVocabulary: loaded.supportsVocabulary === true,
-    begin: async (options: NativeSpeechOptions, filterSilence: boolean, vadPath?: string) => {
-      await send({ kind: "begin", options, filterSilence, vadPath });
+    begin: async (
+      options: NativeSpeechOptions,
+      filterSilence: boolean,
+      vadPath?: string,
+      maxChunkSeconds = 0,
+    ) => {
+      await send({ kind: "begin", options, filterSilence, vadPath, maxChunkSeconds });
     },
     feed: async (pcm: Float32Array) => {
       const reply = await send({ kind: "feed", pcm });

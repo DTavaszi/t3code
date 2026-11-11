@@ -59,7 +59,11 @@ The [speech service](../../apps/server/src/speech/SpeechService.ts) runs
 transcribe-cpp in a child process so a hung native call can be killed without
 taking the server down; see [native.ts](../../apps/server/src/speech/native.ts)
 for the packaging constraints (Node SEA, Electron ASAR). One native request runs
-at a time. Batch uploads carry their options in the body framing defined in
+at a time. The optional client chunk limit also applies to long-form models on
+the streaming transport; it trades the model’s full-recording context for earlier
+results. Native streaming models retain their own segmentation. Timed chunks
+share a second of audio and join matching Unicode words at the seam; recognition
+differences across that overlap can still affect accuracy. Batch uploads carry their options in the body framing defined in
 [shared/speech.ts](../../packages/shared/src/speech.ts); streaming sends them in
 the socket's first command. Model files and the selected model, hardware
 placement, and unload timeout are environment state in server settings.

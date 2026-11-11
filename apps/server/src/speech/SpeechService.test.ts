@@ -922,3 +922,21 @@ it.effect("does not restart a stream cancelled while native finalization is pend
     expect(native.reset).toHaveBeenCalledOnce();
   }).pipe(Effect.provide(layer)),
 );
+
+it.effect("passes the optional chunk limit to non-live long-form recordings", () =>
+  Effect.gen(function* () {
+    const speech = yield* SpeechService.SpeechService;
+    yield* speech.selectModel("fallback-model");
+    native.supportsStreaming = false;
+    native.supportsLongForm = true;
+    yield* Effect.gen(function* () {
+      const stream = yield* speech.startStream({
+        ...DEFAULT_SPEECH_TRANSCRIPTION_OPTIONS,
+        speechSilenceFiltering: false,
+        speechMaxChunkSeconds: 25,
+      });
+      expect(native.begin.mock.calls.at(-1)?.slice(1)).toEqual([false, "test.gguf", 25]);
+      expect(yield* stream.finish).toBe("hello");
+    }).pipe(Effect.scoped);
+  }).pipe(Effect.provide(layer)),
+);

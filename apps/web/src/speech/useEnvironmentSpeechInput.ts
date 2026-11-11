@@ -294,6 +294,7 @@ export function useEnvironmentSpeechInput(input: HookInput) {
           speechRemoveFillerWords: settings.speechRemoveFillerWords,
           ...(cue.trim() ? { speechCorrectionWord: cue } : {}),
           speechSilenceFiltering: settings.speechSilenceFiltering,
+          speechMaxChunkSeconds: settings.speechMaxChunkSeconds,
         };
       },
       getMicrophoneId: () => latestRef.current.clientSettings.voiceMicrophone,

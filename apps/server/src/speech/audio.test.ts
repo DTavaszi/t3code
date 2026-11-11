@@ -90,3 +90,31 @@ it("respects smaller engine limits, hard cuts, and native/internal-long-form eli
     if ("longForm" in config) expect(live).toEqual([]);
   }
 });
+
+it("bounds two minutes of continuous speech before Stop with the configured limit", () => {
+  const audio = make({ filterSilence: false, longForm: true, maxChunkSeconds: 25 });
+  const pcm = frames(seconds(120));
+  const chunks: Float32Array[] = [];
+  for (let at = 0; at < pcm.length; at += frame) {
+    audio.append(pcm.subarray(at, at + frame));
+    audio.score(at / frame, [1]);
+    chunks.push(...audio.take());
+  }
+  expect(chunks.length).toBeGreaterThanOrEqual(4);
+  expect(chunks.every((chunk) => chunk.length <= 25 * 16000)).toBe(true);
+  chunks.push(...audio.take(true));
+  // Adjacent chunks share one second to let inference hear complete words at cuts.
+  const joined = chunks.flatMap((chunk, i) => [...chunk.subarray(i ? 16000 : 0)]);
+  expect(Float32Array.from(joined)).toEqual(pcm);
+});
+
+it("chooses the quietest frame in the last three seconds before the time limit", () => {
+  const audio = make({ filterSilence: false, maxChunkSeconds: 25 });
+  const pcm = new Float32Array(25 * 16000).fill(0.8);
+  const quiet = Math.floor((23 * 16000) / frame) * frame;
+  pcm.fill(0.01, quiet, quiet + frame);
+  audio.append(pcm);
+  audio.score(0, new Array(Math.ceil(pcm.length / frame)).fill(1));
+  const [chunk] = audio.take();
+  expect(chunk!.length).toBe(quiet + frame / 2);
+});

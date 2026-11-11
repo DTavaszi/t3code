@@ -583,7 +583,10 @@ const make = Effect.gen(function* () {
     loaded: LoadedModel,
     options: SpeechTranscriptionOptions,
   ) {
-    if (!options.speechSilenceFiltering && (loaded.supportsStreaming || loaded.supportsLongForm))
+    if (
+      !options.speechSilenceFiltering &&
+      (loaded.supportsStreaming || (loaded.supportsLongForm && !options.speechMaxChunkSeconds))
+    )
       return undefined;
     return yield* acquireSilenceModel("recording");
   });
@@ -777,6 +780,7 @@ const make = Effect.gen(function* () {
         },
         options.speechSilenceFiltering,
         vadPath,
+        ...(options.speechMaxChunkSeconds ? ([options.speechMaxChunkSeconds] as const) : []),
       );
       correct = makeSpeechTextCorrector(vocabulary ? [] : customWords, dictionary);
       started = true;

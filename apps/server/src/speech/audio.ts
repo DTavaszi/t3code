@@ -5,15 +5,18 @@ export function createSpeechAudio(config: {
   nativeStreaming: boolean;
   longForm: boolean;
   maxAudioMs: number;
+  maxChunkSeconds?: number;
 }) {
   const rate = 16_000;
   const frame = config.frameSamples;
   const prefill = Math.ceil((450 * rate) / 1000 / frame);
   const onset = Math.ceil((60 * rate) / 1000 / frame);
   const tail = Math.ceil(((config.nativeStreaming ? 1650 : 450) * rate) / 1000 / frame);
+  const timed = !config.nativeStreaming && (config.maxChunkSeconds ?? 0) > 0;
   const eligible = !config.nativeStreaming && !config.longForm;
   // Preserve the existing output-limit headroom and bounded offline retries.
   const maximum = Math.min(
+    timed ? config.maxChunkSeconds! * rate : Infinity,
     40 * rate,
     config.maxAudioMs > 0 ? Math.max(1, Math.floor((config.maxAudioMs * rate) / 2000)) : 40 * rate,
   );
@@ -139,7 +142,31 @@ export function createSpeechAudio(config: {
       }
       const chunks: Float32Array[] = [];
       const lookahead = Math.max(minimum, (prefill + onset) * frame);
-      if (eligible && samples - start > maximum + (final ? 0 : lookahead)) {
+      if (timed) {
+        while (samples - start >= maximum) {
+          const limit = start + maximum;
+          let cut = limit;
+          let quietest = Infinity;
+          for (
+            let at = Math.ceil((limit - Math.min(3 * rate, maximum / 4)) / frame) * frame;
+            at + frame <= limit;
+            at += frame
+          ) {
+            const pcm = raw(at, at + frame);
+            let energy = 0;
+            for (const value of pcm) energy += value * value;
+            // Prefer the later cut when energy is equal.
+            if (energy <= quietest) {
+              quietest = energy;
+              cut = at + Math.floor(frame / 2);
+            }
+          }
+          const chunk = read(start, cut);
+          if (chunk.length) chunks.push(chunk);
+          start = cut - Math.min(rate, Math.floor(maximum / 4));
+        }
+      }
+      if (!timed && eligible && samples - start > maximum + (final ? 0 : lookahead)) {
         const candidates = pauses(samples, final);
         while (samples - start > maximum + (final ? 0 : lookahead)) {
           let best: { cut: number; score: number } | undefined;

@@ -701,10 +701,48 @@ function AdvancedSpeechSettings({
   catalog: VoiceModels;
 }) {
   const { run, controlsDisabled, status } = catalog;
+  const settings = useClientSettings();
   if (!status?.supported) return null;
   const supported = status;
   return (
-    <AdvancedSettings targetIds={[searchableSetting("speech-hardware").id]}>
+    <AdvancedSettings
+      targetIds={[
+        searchableSetting("speech-hardware").id,
+        searchableSetting("speech-max-chunk").id,
+      ]}
+    >
+      <SettingsRow
+        {...searchableSetting("speech-max-chunk")}
+        title="Maximum chunk length"
+        description="Transcribe non-live local models while you speak, even without pauses. Shorter chunks can reduce context and accuracy. Off keeps the model’s existing behavior."
+        control={
+          <Select
+            value={String(settings.speechMaxChunkSeconds)}
+            onValueChange={(value) => {
+              if (value)
+                void updateClientSettings({
+                  speechMaxChunkSeconds: Number(value) as 0 | 20 | 25 | 30,
+                });
+            }}
+          >
+            <SelectTrigger size="sm" aria-label="Maximum chunk length" className="max-w-72">
+              <SelectValue>
+                {settings.speechMaxChunkSeconds
+                  ? `${settings.speechMaxChunkSeconds} seconds`
+                  : "Off"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectPopup align="end" alignItemWithTrigger={false}>
+              <SelectItem value="0">Off</SelectItem>
+              {[20, 25, 30].map((seconds) => (
+                <SelectItem key={seconds} value={String(seconds)}>
+                  {seconds} seconds
+                </SelectItem>
+              ))}
+            </SelectPopup>
+          </Select>
+        }
+      />
       <SettingsRow
         {...searchableSetting("speech-hardware")}
         title="Hardware"

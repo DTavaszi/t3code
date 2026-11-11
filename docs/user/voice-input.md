@@ -75,6 +75,12 @@ environment's CPU; a GPU you picked yourself reports the error instead. Nothing
 is ever retried on another environment. Models marked **Live preview** show
 text while you speak. Other models can process long recordings in chunks at pauses
 while you record; models with built-in long-form support transcribe when you stop.
+For continuous speech, set **Advanced → Maximum chunk length** to 20, 25, or 30
+seconds to transcribe during recording even without pauses. **Off** (the default)
+keeps the model’s existing behavior. This device preference applies to non-live
+local models on web and desktop, including long-form models. Shorter chunks lose
+some context and may reduce accuracy. Live preview, cloud transcription, and
+mobile recordings are unchanged.
 
 ## Dictate
 

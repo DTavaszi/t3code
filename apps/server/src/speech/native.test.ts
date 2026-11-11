@@ -316,3 +316,34 @@ it("preserves withheld audio on VAD failure while keeping ASR failures distinct"
     await model.dispose();
   }
 });
+
+it("transcribes continuous long-form audio before Stop only when the limit is enabled", async () => {
+  const moduleUrl = `data:text/javascript,${encodeURIComponent(`
+    let calls = 0;
+    export const TranscribeModel = { load: async () => ({
+      capabilities: { supportsStreaming: false, maxAudioMs: 0 },
+      supports: (feature) => feature === "long_form",
+      transcribe: async () => ({ text: ++calls === 1 ? "नमस्ते दुनिया" : "दुनिया फिर" }),
+    }) };
+  `)}`;
+  for (const maxChunkSeconds of [0, 25]) {
+    const model = await loadNativeSpeechModel(
+      "unused",
+      new AbortController().signal,
+      moduleUrl,
+      "cpu",
+    );
+    try {
+      await model.begin({ timestamps: "none", language: "hi" }, false, undefined, maxChunkSeconds);
+      let preview = null;
+      for (let second = 0; second < 26; second++) {
+        const update = await model.feed(new Float32Array(16000).fill(0.2));
+        if (update.text) preview = update.text;
+      }
+      expect(preview).toEqual(maxChunkSeconds ? { committed: "नमस्ते दुनिया", tentative: "" } : null);
+      expect(await model.finish()).toBe(maxChunkSeconds ? "नमस्ते दुनिया फिर" : "नमस्ते दुनिया");
+    } finally {
+      await model.dispose();
+    }
+  }
+});

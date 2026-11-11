@@ -608,6 +608,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     ],
   },
   {
+    id: "speech-max-chunk",
+    title: "Maximum chunk length",
+    to: "/settings/voice",
+    searchTerms: ["speech voice stt advanced time limit continuous lag transcription"],
+  },
+  {
     id: "speech-hardware",
     title: "Transcription hardware and model unloading",
     to: "/settings/voice",

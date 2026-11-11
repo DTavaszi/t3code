@@ -281,8 +281,11 @@ export type SpeechPostProcessingPromptSettings = typeof SpeechPostProcessingProm
 /** A word the person says to flag a spoken correction, such as "sorry" or "err". */
 export const SpeechCorrectionCue = Schema.String.check(Schema.isMaxLength(50));
 
+export const SpeechMaxChunkSeconds = Schema.Literals([0, 20, 25, 30]);
+
 /** Recognition preferences that travel with every recording. */
 export const SpeechTranscriptionOptions = Schema.Struct({
+  speechMaxChunkSeconds: Schema.optionalKey(SpeechMaxChunkSeconds),
   speechLanguage: SpeechLanguage,
   speechTranslateToEnglish: Schema.Boolean,
   speechCustomWords: SpeechCustomWords,
