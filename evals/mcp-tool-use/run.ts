@@ -1327,6 +1327,7 @@ export const t3Default = (
                 reviewThreads: [],
                 hiddenResolvedThreads: 0,
                 truncated: false,
+                nextCursor: null,
               },
             }
           : {}),
@@ -1351,6 +1352,7 @@ export const t3Default = (
             updatedAt: "2026-10-27T10:00:00Z",
           })),
         truncated: false,
+        nextCursor: null,
       };
     }
     case "pull_request_update":
