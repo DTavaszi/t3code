@@ -27,6 +27,8 @@ export function createSpeechAudio(config: {
   const keep: boolean[] = [];
   let length = 0;
   let start = 0;
+  let overlapEnd = 0;
+  const overlaps = new WeakMap<Float32Array, number>();
   let streamAt = 0;
   let inSpeech = false;
   let onsetCount = 0;
@@ -127,6 +129,7 @@ export function createSpeechAudio(config: {
     },
     audio: () => raw(0, length),
     samples: () => length,
+    overlapSamples: (pcm: Float32Array) => overlaps.get(pcm) ?? 0,
     take(final = false): Float32Array[] {
       const samples = Math.min(length, probs.length * frame);
       // Preserve a very short utterance or syllable stopped before onset confirms.
@@ -162,7 +165,9 @@ export function createSpeechAudio(config: {
             }
           }
           const chunk = read(start, cut);
+          overlaps.set(chunk, read(start, Math.min(cut, Math.max(start, overlapEnd))).length);
           if (chunk.length) chunks.push(chunk);
+          overlapEnd = chunk.length ? cut : 0;
           start = cut - Math.min(rate, Math.floor(maximum / 4));
         }
       }
@@ -192,6 +197,7 @@ export function createSpeechAudio(config: {
       }
       if (final && samples > start) {
         const chunk = read(start, samples);
+        overlaps.set(chunk, read(start, Math.min(samples, Math.max(start, overlapEnd))).length);
         if (chunk.length) chunks.push(chunk);
         start = samples;
       }

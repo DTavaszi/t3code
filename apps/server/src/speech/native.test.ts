@@ -321,9 +321,23 @@ it("transcribes continuous long-form audio before Stop only when the limit is en
   const moduleUrl = `data:text/javascript,${encodeURIComponent(`
     let calls = 0;
     export const TranscribeModel = { load: async () => ({
-      capabilities: { supportsStreaming: false, maxAudioMs: 0 },
+      capabilities: { supportsStreaming: false, maxAudioMs: 0, maxTimestampKind: "word" },
       supports: (feature) => feature === "long_form",
-      transcribe: async () => ({ text: ++calls === 1 ? "नमस्ते दुनिया" : "दुनिया फिर" }),
+      transcribe: async (pcm, options) => {
+        const first = ++calls === 1;
+        const duration = pcm.length / 16;
+        return {
+          text: first ? "नमस्ते दुनिया" : "दुनिया फिर",
+          timestampKind: options.timestamps,
+          words: first ? [
+            { text: "नमस्ते", t0Ms: duration - 1500, t1Ms: duration - 1100 },
+            { text: "दुनिया", t0Ms: duration - 800, t1Ms: duration - 400 },
+          ] : [
+            { text: "दुनिया", t0Ms: 200, t1Ms: 600 },
+            { text: "फिर", t0Ms: 1100, t1Ms: 1500 },
+          ],
+        };
+      },
     }) };
   `)}`;
   for (const maxChunkSeconds of [0, 25]) {
@@ -345,5 +359,61 @@ it("transcribes continuous long-form audio before Stop only when the limit is en
     } finally {
       await model.dispose();
     }
+  }
+});
+
+it.each(["OutputTruncated", "InputTooLong"])(
+  "keeps repetition in non-overlapping %s retry halves",
+  async (name) => {
+    const moduleUrl = `data:text/javascript,${encodeURIComponent(`
+    class ${name} extends Error {}
+    let calls = 0;
+    export const TranscribeModel = { load: async () => ({
+      capabilities: { supportsStreaming: false, maxAudioMs: 0 },
+      supports: () => false,
+      transcribe: async (pcm) => {
+        if (pcm.length > 4000) throw new ${name}();
+        return { text: ++calls === 1 ? "say yes" : "yes again" };
+      },
+    }) };
+  `)}`;
+    const model = await loadNativeSpeechModel(
+      "unused",
+      new AbortController().signal,
+      moduleUrl,
+      "cpu",
+    );
+    try {
+      await model.begin({ timestamps: "none", language: "en" }, false, undefined, 25);
+      await model.feed(new Float32Array(8000).fill(0.2));
+      expect(await model.finish()).toBe("say yes yes again");
+    } finally {
+      await model.dispose();
+    }
+  },
+);
+
+it("preserves an untimed repeated phrase across real overlapping chunks", async () => {
+  const phrase = "we should review this complete sentence again";
+  const moduleUrl = `data:text/javascript,${encodeURIComponent(`
+    let calls = 0;
+    export const TranscribeModel = { load: async () => ({
+      capabilities: { supportsStreaming: false, maxAudioMs: 0, maxTimestampKind: "segment" },
+      supports: (feature) => feature === "long_form",
+      transcribe: async () => ({ text: ++calls === 1 ? ${JSON.stringify(phrase)} : ${JSON.stringify(phrase + " tomorrow")} }),
+    }) };
+  `)}`;
+  const model = await loadNativeSpeechModel(
+    "unused",
+    new AbortController().signal,
+    moduleUrl,
+    "cpu",
+  );
+  try {
+    await model.begin({ timestamps: "none", language: "en" }, false, undefined, 25);
+    for (let second = 0; second < 26; second++) await model.feed(new Float32Array(16000).fill(0.2));
+    expect(await model.finish()).toBe(phrase + " " + phrase + " tomorrow");
+  } finally {
+    await model.dispose();
   }
 });

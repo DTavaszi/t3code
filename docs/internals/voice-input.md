@@ -62,8 +62,10 @@ for the packaging constraints (Node SEA, Electron ASAR). One native request runs
 at a time. The optional client chunk limit also applies to long-form models on
 the streaming transport; it trades the model’s full-recording context for earlier
 results. Native streaming models retain their own segmentation. Timed chunks
-share a second of audio and join matching Unicode words at the seam; recognition
-differences across that overlap can still affect accuracy. Batch uploads carry their options in the body framing defined in
+share up to a second of audio. Seam matching requires word timings inside that
+shared interval; missing or inconsistent timings preserve repetitions. Retry
+halves share no audio and are concatenated before seam matching. Recognition
+differences across the overlap can still affect accuracy. Batch uploads carry their options in the body framing defined in
 [shared/speech.ts](../../packages/shared/src/speech.ts); streaming sends them in
 the socket's first command. Model files and the selected model, hardware
 placement, and unload timeout are environment state in server settings.

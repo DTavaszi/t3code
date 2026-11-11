@@ -24,7 +24,7 @@ let revision;
 let texts;
 let heardAudio;
 let maxChunkSeconds;
-const transcript = () => maxChunkSeconds && !nativeStreaming ? joinSpeechChunks(texts, options.task === "translate" ? "en" : options.language ?? "auto") : texts.join(" ").trim();
+const transcript = () => maxChunkSeconds && !nativeStreaming ? joinSpeechChunks(texts, options.task === "translate" ? "en" : options.language ?? "auto") : texts.map((chunk) => chunk.text).join(" ").trim();
 const warnVad = () => console.warn("Silero silence filtering unavailable; preserving raw recording and using bounded ASR chunks.");
 const resetAsr = () => {
   if (stream) stream.reset();
@@ -73,14 +73,22 @@ const begin = async (message, live) => {
 };
 const transcribe = async (pcm) => {
   try {
-    const result = await model.transcribe(pcm, options);
-    texts.push(result.text);
+    const timestamps = maxChunkSeconds && ["word", "token"].includes(model.capabilities.maxTimestampKind)
+      ? "word" : options.timestamps;
+    const result = await model.transcribe(pcm, { ...options, timestamps });
+    return { text: result.text, words: result.timestampKind === "word" ? result.words : undefined };
   } catch (error) {
     if ((error?.constructor?.name !== "OutputTruncated" &&
          error?.constructor?.name !== "InputTooLong") || pcm.length <= 4000) throw error;
     const middle = Math.floor(pcm.length / 2);
-    await transcribe(pcm.subarray(0, middle));
-    await transcribe(pcm.subarray(middle));
+    const left = await transcribe(pcm.subarray(0, middle));
+    const right = await transcribe(pcm.subarray(middle));
+    return {
+      text: [left.text, right.text].join(" "),
+      words: left.words && right.words ? [...left.words, ...right.words.map((word) => ({
+        ...word, t0Ms: word.t0Ms + middle / 16, t1Ms: word.t1Ms + middle / 16,
+      }))] : undefined,
+    };
   }
 };
 const decode = async (final) => {
@@ -95,7 +103,8 @@ const decode = async (final) => {
         preview = { committed: text.committed, tentative: text.tentative };
       }
     } else {
-      await transcribe(pcm);
+      const result = await transcribe(pcm);
+      texts.push({ ...result, durationMs: pcm.length / 16, overlapMs: audio.overlapSamples(pcm) / 16 });
       preview = { committed: transcript(), tentative: "" };
     }
   }

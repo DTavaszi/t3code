@@ -104,7 +104,7 @@ it("bounds two minutes of continuous speech before Stop with the configured limi
   expect(chunks.every((chunk) => chunk.length <= 25 * 16000)).toBe(true);
   chunks.push(...audio.take(true));
   // Adjacent chunks share one second to let inference hear complete words at cuts.
-  const joined = chunks.flatMap((chunk, i) => [...chunk.subarray(i ? 16000 : 0)]);
+  const joined = chunks.flatMap((chunk) => [...chunk.subarray(audio.overlapSamples(chunk))]);
   expect(Float32Array.from(joined)).toEqual(pcm);
 });
 
@@ -117,4 +117,17 @@ it("chooses the quietest frame in the last three seconds before the time limit",
   audio.score(0, new Array(Math.ceil(pcm.length / frame)).fill(1));
   const [chunk] = audio.take();
   expect(chunk!.length).toBe(quiet + frame / 2);
+});
+
+it("reports the actual shared audio when the engine limit shortens overlap", () => {
+  const audio = make({ filterSilence: false, maxChunkSeconds: 25, maxAudioMs: 4000 });
+  const pcm = frames(seconds(6));
+  audio.append(pcm);
+  audio.score(0, new Array(pcm.length / frame).fill(1));
+  const chunks = [...audio.take(), ...audio.take(true)];
+  expect(audio.overlapSamples(chunks[0]!)).toBe(0);
+  expect(chunks.slice(1).every((chunk) => audio.overlapSamples(chunk) === 8000)).toBe(true);
+  expect(
+    Float32Array.from(chunks.flatMap((chunk) => [...chunk.subarray(audio.overlapSamples(chunk))])),
+  ).toEqual(pcm);
 });
